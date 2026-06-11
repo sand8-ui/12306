@@ -48,3 +48,5 @@ http://localhost:5173
 ## Git 实验说明
 
 当前目录 `project/` 可作为独立源码仓库使用，实验时建议只管理源码与运行说明，不将实验报告和截图纳入同一仓库。
+
+当前仓库默认分支为 `main`，适合继续演示 `git status`、`git log`、`git ls-files` 等基础操作。
