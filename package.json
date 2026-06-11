@@ -1,0 +1,12 @@
+{
+  "name": "mini-12306-node-react",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mini-12306 demo project implemented with Node.js backend and React frontend.",
+  "scripts": {
+    "start:api": "node ./server/src/server.js",
+    "start:client": "node ./scripts/serve-client.js",
+    "dev": "node ./scripts/dev.js",
+    "test": "node --test ./server/tests/*.test.js"
+  }
+}
