@@ -10,6 +10,10 @@ function createStore() {
     sessions: {},
   };
 
+  function roundCurrency(value) {
+    return Math.round(value * 100) / 100;
+  }
+
   function reset() {
     state.users = clone(seedUsers);
     state.trains = clone(seedTrains);
@@ -19,8 +23,43 @@ function createStore() {
   }
 
   function sanitizeUser(user) {
-    const { password, ...safeUser } = user;
+    const { password, bankCard, ...safeUser } = user;
     return safeUser;
+  }
+
+  function maskBankCard(bankCard) {
+    const tail = String(bankCard).slice(-4);
+    return `**** **** **** ${tail}`;
+  }
+
+  function verifyIdentity({ name, idCard, bankCard }) {
+    if (!/^\d{17}[\dXx]$/.test(String(idCard))) {
+      throw new Error("身份证号格式不正确。");
+    }
+    if (!/^\d{16,19}$/.test(String(bankCard))) {
+      throw new Error("银行卡号格式不正确。");
+    }
+    if (String(name).trim().length < 2) {
+      throw new Error("姓名长度不能少于 2 个字符。");
+    }
+    return {
+      verified: true,
+      channel: "mock-citizen-service",
+      verifiedAt: nowIso(),
+    };
+  }
+
+  function processPayment(user, train, amount) {
+    return {
+      id: createId("pay"),
+      userId: user.id,
+      trainId: train.id,
+      amount: roundCurrency(amount),
+      channel: "mock-bank-gateway",
+      card: user.bankCardMasked,
+      status: "SUCCESS",
+      paidAt: nowIso(),
+    };
   }
 
   function createSession(user) {
@@ -38,16 +77,17 @@ function createStore() {
   }
 
   function registerPassenger(payload) {
-    const { name, username, phone, password, idCard } = payload;
-    if (!name || !username || !phone || !password || !idCard) {
+    const { name, username, phone, password, idCard, bankCard } = payload;
+    if (!name || !username || !phone || !password || !idCard || !bankCard) {
       throw new Error("注册信息不完整。");
     }
     if (String(password).length < 6) {
       throw new Error("密码长度不能少于 6 位。");
     }
-    if (state.users.some((user) => user.username === username || user.phone === phone)) {
-      throw new Error("用户名或手机号已存在。");
+    if (state.users.some((user) => user.username === username || user.phone === phone || user.idCard === idCard)) {
+      throw new Error("用户名、手机号或身份证号已存在。");
     }
+    const verification = verifyIdentity({ name, idCard, bankCard });
     const user = {
       id: createId("u"),
       role: "PASSENGER",
@@ -56,6 +96,11 @@ function createStore() {
       phone,
       password,
       idCard,
+      bankCard,
+      bankCardMasked: maskBankCard(bankCard),
+      verified: verification.verified,
+      verificationChannel: verification.channel,
+      verifiedAt: verification.verifiedAt,
     };
     state.users.push(user);
     return sanitizeUser(user);
@@ -138,8 +183,12 @@ function createStore() {
     if (!trainId || !passengerName) {
       throw new Error("购票信息不完整。");
     }
+    if (!user.verified) {
+      throw new Error("当前账号尚未完成实名校验。");
+    }
     const train = findTrain(trainId);
     ensureTrainCanSell(train);
+    const payment = processPayment(user, train, train.price);
     train.availableSeats -= 1;
     const ticket = {
       id: createId("t"),
@@ -154,8 +203,14 @@ function createStore() {
       arriveTime: train.arriveTime,
       seatType: train.seatType,
       price: train.price,
+      paidAmount: payment.amount,
       status: "PAID",
       sourceTicketId: null,
+      paymentId: payment.id,
+      paymentChannel: payment.channel,
+      refundFee: 0,
+      refundAmount: 0,
+      changeFee: 0,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
@@ -188,7 +243,11 @@ function createStore() {
     if (train) {
       train.availableSeats += 1;
     }
+    const refundFee = roundCurrency(ticket.paidAmount * state.settings.refundRate);
+    const refundAmount = roundCurrency(ticket.paidAmount - refundFee);
     ticket.status = "REFUNDED";
+    ticket.refundFee = refundFee;
+    ticket.refundAmount = refundAmount;
     ticket.updatedAt = nowIso();
     return clone(ticket);
   }
@@ -213,11 +272,14 @@ function createStore() {
     const oldTrain = findTrain(ticket.trainId);
     const newTrain = findTrain(newTrainId);
     ensureTrainCanSell(newTrain);
+    const changeFee = roundCurrency(ticket.paidAmount * state.settings.changeRate);
+    const newPayment = processPayment(user, newTrain, newTrain.price);
     if (oldTrain) {
       oldTrain.availableSeats += 1;
     }
     newTrain.availableSeats -= 1;
     ticket.status = "CHANGED";
+    ticket.changeFee = changeFee;
     ticket.updatedAt = nowIso();
     const newTicket = {
       id: createId("t"),
@@ -232,8 +294,14 @@ function createStore() {
       arriveTime: newTrain.arriveTime,
       seatType: newTrain.seatType,
       price: newTrain.price,
+      paidAmount: newPayment.amount,
       status: "PAID",
       sourceTicketId: ticket.id,
+      paymentId: newPayment.id,
+      paymentChannel: newPayment.channel,
+      refundFee: 0,
+      refundAmount: 0,
+      changeFee,
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
@@ -266,6 +334,10 @@ function createStore() {
     return {
       trains: clone(state.trains),
       settings: clone(state.settings),
+      services: {
+        identityService: "mock-citizen-service",
+        paymentGateway: "mock-bank-gateway",
+      },
     };
   }
 

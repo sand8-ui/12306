@@ -20,6 +20,8 @@ test("purchase then refund updates ticket status and seats", () => {
   const refunded = store.refundTicket(login.token, { ticketId: ticket.id });
 
   assert.equal(refunded.status, "REFUNDED");
+  assert.equal(refunded.refundFee, 82.95);
+  assert.equal(refunded.refundAmount, 470.05);
   assert.equal(store.queryTrains({ date: "2026-06-01", from: "武汉", to: "北京" })[0].availableSeats, beforeSeats);
 });
 
@@ -45,5 +47,24 @@ test("change ticket creates new paid ticket and marks source changed", () => {
 
   assert.equal(changed.status, "PAID");
   assert.equal(changed.sourceTicketId, original.id);
+  assert.equal(changed.changeFee, 27.65);
+  assert.equal(changed.paymentChannel, "mock-bank-gateway");
   assert.equal(source.status, "CHANGED");
+  assert.equal(source.changeFee, 27.65);
+});
+
+test("register requires bank card and returns verified passenger profile", () => {
+  const store = createStore();
+  const user = store.registerPassenger({
+    name: "李四",
+    username: "lisi",
+    phone: "13812345678",
+    password: "abc12345",
+    idCard: "420111199902021234",
+    bankCard: "6222029999998888777",
+  });
+
+  assert.equal(user.verified, true);
+  assert.equal(user.bankCardMasked, "**** **** **** 8777");
+  assert.equal(user.verificationChannel, "mock-citizen-service");
 });

@@ -7,6 +7,9 @@ const seedUsers = [
     phone: "13800000001",
     password: "password123",
     idCard: "420111199901011234",
+    bankCard: "6222021234567890123",
+    bankCardMasked: "6222 **** **** 0123",
+    verified: true,
   },
   {
     id: "u-admin-1",
@@ -16,6 +19,9 @@ const seedUsers = [
     phone: "13900000000",
     password: "admin123",
     idCard: "000000000000000000",
+    bankCard: "6217000000000000000",
+    bankCardMasked: "6217 **** **** 0000",
+    verified: true,
   },
 ];
 
@@ -78,7 +84,7 @@ const seedSettings = {
   salesOpen: true,
   refundRate: 0.15,
   changeRate: 0.05,
-  serviceNotice: "Mini-12306 演示系统已开放购票、退票和改签。",
+  serviceNotice: "Mini-12306 演示系统已开放实名注册、在线购票、退票和改签。",
 };
 
 module.exports = {

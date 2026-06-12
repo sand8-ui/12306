@@ -4,7 +4,7 @@ const API_BASE = "http://localhost:3000/api";
 
 function App() {
   const [tab, setTab] = useState("login");
-  const [bootstrap, setBootstrap] = useState({ trains: [], settings: null });
+  const [bootstrap, setBootstrap] = useState({ trains: [], settings: null, services: null });
   const [message, setMessage] = useState(null);
   const [auth, setAuth] = useState(() => {
     const saved = localStorage.getItem("mini12306-auth");
@@ -17,6 +17,7 @@ function App() {
     phone: "",
     password: "",
     idCard: "",
+    bankCard: "",
   });
   const [queryForm, setQueryForm] = useState({ date: "2026-06-01", from: "武汉", to: "北京" });
   const [trains, setTrains] = useState([]);
@@ -242,12 +243,14 @@ function App() {
         <section className="hero">
           <h1>Mini-12306 车票服务系统</h1>
           <p>
-            对应实验报告中的 Node.js + React 版本实现，支持旅客注册、登录、查询车次、购票、退票、改签，以及管理员系统设置。
+            对应实验报告中的 Node.js + React 版本实现，支持实名注册、登录、查询车次、在线购票、退票、改签，以及管理员系统设置。
           </p>
           <div className="hero-badges">
             <span className="badge">演示账号：13800000001 / password123</span>
             <span className="badge">管理员：admin / admin123</span>
             <span className="badge">当前状态：{bootstrap.settings?.salesOpen ? "开放购票" : "暂停购票"}</span>
+            <span className="badge">身份认证：{bootstrap.services?.identityService || "未加载"}</span>
+            <span className="badge">支付通道：{bootstrap.services?.paymentGateway || "未加载"}</span>
           </div>
         </section>
 
@@ -314,26 +317,41 @@ function App() {
 
                 {tab === "register" && (
                   <form className="grid" onSubmit={handleRegister}>
-                    <label>
-                      姓名
-                      <input value={registerForm.name} onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })} />
-                    </label>
-                    <label>
-                      用户名
-                      <input value={registerForm.username} onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })} />
-                    </label>
-                    <label>
-                      手机号
-                      <input value={registerForm.phone} onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })} />
-                    </label>
-                    <label>
-                      身份证号
-                      <input value={registerForm.idCard} onChange={(e) => setRegisterForm({ ...registerForm, idCard: e.target.value })} />
-                    </label>
-                    <label>
-                      密码
-                      <input type="password" value={registerForm.password} onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })} />
-                    </label>
+                    <div className="grid two">
+                      <label>
+                        姓名
+                        <input value={registerForm.name} onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })} />
+                      </label>
+                      <label>
+                        用户名
+                        <input value={registerForm.username} onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })} />
+                      </label>
+                    </div>
+                    <div className="grid two">
+                      <label>
+                        手机号
+                        <input value={registerForm.phone} onChange={(e) => setRegisterForm({ ...registerForm, phone: e.target.value })} />
+                      </label>
+                      <label>
+                        身份证号
+                        <input value={registerForm.idCard} onChange={(e) => setRegisterForm({ ...registerForm, idCard: e.target.value })} />
+                      </label>
+                    </div>
+                    <div className="grid two">
+                      <label>
+                        银行卡号
+                        <input
+                          value={registerForm.bankCard}
+                          onChange={(e) => setRegisterForm({ ...registerForm, bankCard: e.target.value })}
+                          placeholder="用于模拟在线支付实名校验"
+                        />
+                      </label>
+                      <label>
+                        密码
+                        <input type="password" value={registerForm.password} onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })} />
+                      </label>
+                    </div>
+                    <div className="notice">注册会触发模拟实名校验，需同时填写身份证号与银行卡号。</div>
                     <button className="primary" type="submit">
                       提交注册
                     </button>
@@ -444,6 +462,14 @@ function App() {
                     <strong>退票手续费</strong>
                     <span>{Math.round((bootstrap.settings?.refundRate || 0) * 100)}%</span>
                   </div>
+                  <div className="info-item">
+                    <strong>改签手续费</strong>
+                    <span>{Math.round((bootstrap.settings?.changeRate || 0) * 100)}%</span>
+                  </div>
+                  <div className="info-item">
+                    <strong>模拟服务</strong>
+                    <span>{bootstrap.services ? "身份认证 + 在线支付已接入演示流" : "未加载"}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -517,6 +543,11 @@ function App() {
                         <span>到达：{ticket.arriveTime}</span>
                         <span>席别：{ticket.seatType}</span>
                         <span>票价：¥{ticket.price}</span>
+                        <span>支付金额：¥{ticket.paidAmount ?? ticket.price}</span>
+                        <span>支付通道：{ticket.paymentChannel || "模拟通道"}</span>
+                        {ticket.changeFee > 0 && <span>改签手续费：¥{ticket.changeFee}</span>}
+                        {ticket.refundFee > 0 && <span>退票手续费：¥{ticket.refundFee}</span>}
+                        {ticket.refundAmount > 0 && <span>实际退款：¥{ticket.refundAmount}</span>}
                         {ticket.sourceTicketId && <span>来源车票：{ticket.sourceTicketId}</span>}
                       </div>
                       {ticket.status === "PAID" && (
